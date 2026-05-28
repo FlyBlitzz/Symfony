@@ -1,0 +1,17 @@
+<h1>Publications ThéMA</h1>
+
+{% for publication in publications %}
+
+    <div style="margin-bottom:30px;">
+
+        <a href="{{ publication.url }}" target="_blank">
+
+            <h2>{{ publication.title }}</h2>
+
+        </a>
+
+        <p>{{ publication.citation }}</p>
+
+    </div>
+
+{% endfor %}
