@@ -15,14 +15,26 @@ class PublicationController extends AbstractController
         Connection $connection,
         Request $request
     ): JsonResponse {
+
         $annee = $request->query->get('annee', 2026);
-        $search = $request->query->get('search', '');
-        $category = $request->query->get(
+
+        $search = $request->query->get(
+            'search',
+            ''
+        );
+
+        $language = $request->query->get(
+            'language',
+            ''
+        );
+
+        $categories = $request->query->get(
             'category',
             ''
         );
 
         $sql = "
+
             SELECT
                 title,
                 citation,
@@ -35,55 +47,66 @@ class PublicationController extends AbstractController
                 LOWER(title) LIKE LOWER(:search)
                 OR LOWER(citation) LIKE LOWER(:search)
             )
-            AND (
-                :category = ''
-                OR doc_type = :category
-            )
-            ORDER BY doc_type, date_publication DESC
+        ";
+
+        $params = [
+            'annee' => $annee,
+            'search' => '%' . $search . '%'
+        ];
+
+        /* =====================================
+           FILTRE LANGUE
+        ===================================== */
+
+        if ($language !== '') {
+
+            $sql .= "
+                AND langue = :language
+            ";
+            $params['language'] = $language;
+        }
+
+        /* =====================================
+           FILTRE CATEGORIES MULTIPLES
+        ===================================== */
+
+        if ($categories !== '') {
+
+            $categoriesArray = explode(
+                ',',
+                $categories
+            );
+
+            $placeholders = [];
+
+            foreach ($categoriesArray as $index => $category) {
+                $key = 'cat' . $index;
+                $placeholders[] = ':' . $key;
+                $params[$key] = $category;
+            }
+
+            $sql .= "
+                AND doc_type IN (
+                    " . implode(',', $placeholders) . "
+                )
+            ";
+        }
+
+        $sql .= "
+            ORDER BY
+                doc_type,
+                date_publication DESC
         ";
 
         $publications = $connection
             ->executeQuery(
                 $sql,
-                [
-                    'annee' => $annee,
-                    'search' => '%' . $search . '%',
-                    'category' => $category
-                ]
+                $params
             )
             ->fetchAllAssociative();
-        return $this->json($publications);
-    }
 
-    #[Route('/api/stats/categories', name: 'api_stats_categories')]
-    public function statsCategories(
-        Connection $connection,
-        Request $request
-    ): JsonResponse {
-        $annee = $request->query->get(
-            'annee',
-            2026
+        return $this->json(
+            $publications
         );
-        $sql = "
-            SELECT
-                doc_type,
-                COUNT(*) as total
-            FROM publication
-            WHERE EXTRACT(
-                YEAR FROM date_publication
-            ) = :annee
-            GROUP BY doc_type
-            ORDER BY total DESC
-        ";
-
-        $stats = $connection
-            ->executeQuery(
-                $sql,
-                [
-                    'annee' => $annee
-                ]
-            )
-            ->fetchAllAssociative();
-        return $this->json($stats);
     }
 }
